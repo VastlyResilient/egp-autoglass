@@ -67,8 +67,10 @@ body { overflow-x: hidden; }
 .hero {
   position: relative; width: 100%; overflow: hidden;
   height: 100dvh;
-  background: linear-gradient(180deg, #000000 0%, #08090b 55%, #17191d 100%);
+  /* zoomed-in, blurred liquid-glass still of the film's first frame */
+  background: #050608 url("./assets/img/hero-glass-desktop.jpg") center / cover no-repeat;
 }
+@media (max-aspect-ratio: 4/5) { .hero { background-image: url("./assets/img/hero-glass-mobile.jpg"); } }
 
 .hero-corner-logo {
   position: absolute; z-index: 10; pointer-events: none;
@@ -526,6 +528,15 @@ body { overflow-x: hidden; }
   }
   video.addEventListener("loadedmetadata", showFirstFrame);
   if (video.readyState >= 1) showFirstFrame();
+  // The film never plays on its own: it moves only with scroll, after the card has fully zoomed in.
+  video.addEventListener("play", function() { video.pause(); });
+  // Load the whole clip up front so every scroll position can be shown instantly.
+  try {
+    fetch(video.currentSrc || video.src).then(function(r) { return r.ok ? r.blob() : null; }).then(function(b) {
+      if (!b) return; var t = video.currentTime; video.src = URL.createObjectURL(b);
+      video.addEventListener("loadeddata", function once() { video.removeEventListener("loadeddata", once); try { video.currentTime = Math.max(0.001, t); } catch(e) {} });
+    }).catch(function(){});
+  } catch(e) {}
 
   // Constants
   var EXPAND_VH = 160, CONTENT_VH = 1040, MAX_BLUR = 24;
@@ -607,12 +618,12 @@ body { overflow-x: hidden; }
           var p = this.progress();
           var d = video.duration;
           if (!d || isNaN(d)) return;
-          if (video.readyState >= 2) {
+          if (video.readyState >= 1) {
             if (!video.paused) video.pause();
-            var target = p * d;
+            var hold = 0.015; // stay on the first frame until the zoom has fully landed
+            var target = Math.max(0, (p - hold) / (1 - hold)) * d;
+            if (target < 0.001) target = 0.001;
             if (Math.abs(video.currentTime - target) > 0.03) video.currentTime = target;
-          } else if (video.paused) {
-            video.play().catch(function(){});
           }
         }
       }, expandFraction);
