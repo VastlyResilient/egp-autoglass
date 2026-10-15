@@ -528,18 +528,39 @@ body { overflow-x: hidden; }
   video.addEventListener("loadedmetadata", showFirstFrame);
   if (video.readyState >= 1) showFirstFrame();
   // The film never plays on its own: it moves only with scroll, after the card has fully zoomed in.
-  video.addEventListener("play", function() { video.pause(); });
   // Phones get a film composed for a tall screen.
   var phone = window.matchMedia("(max-aspect-ratio: 4/5)").matches;
   if (phone) video.poster = video.getAttribute("data-poster-m");
   video.src = video.getAttribute(phone ? "data-src-m" : "data-src");
-  // Load the whole clip up front so every scroll position can be shown instantly.
-  try {
-    fetch(video.src).then(function(r) { return r.ok ? r.blob() : null; }).then(function(b) {
-      if (!b) return; var t = video.currentTime; video.src = URL.createObjectURL(b);
-      video.addEventListener("loadeddata", function once() { video.removeEventListener("loadeddata", once); try { video.currentTime = Math.max(0.001, t); } catch(e) {} });
-    }).catch(function(){});
-  } catch(e) {}
+  video.load();
+  // iPhone Safari only paints frames for a video that has been played once. Start and pause the
+  // muted clip silently ("unlock"); repeat on the first touch, which always counts as a user gesture.
+  var unlocked = false;
+  function unlock() {
+    if (unlocked) return;
+    var keep = video.currentTime;
+    var pr;
+    try { pr = video.play(); } catch (e) { pr = null; }
+    if (pr && pr.then) {
+      pr.then(function() { unlocked = true; video.pause(); try { video.currentTime = Math.max(0.001, keep); } catch (e) {} })
+        .catch(function() {});
+    } else { video.pause(); }
+  }
+  unlock();
+  ["touchstart", "pointerdown", "keydown"].forEach(function(ev) {
+    window.addEventListener(ev, function once() { unlock(); window.removeEventListener(ev, once, true); }, { passive: true, capture: true });
+  });
+  // Elsewhere, load the whole clip up front so every scroll position shows instantly.
+  // On iOS the native streamed file is more reliable than an in-memory copy, so it is left as is.
+  var iOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (!iOS) {
+    try {
+      fetch(video.src).then(function(r) { return r.ok ? r.blob() : null; }).then(function(b) {
+        if (!b) return; var t = video.currentTime; video.src = URL.createObjectURL(b);
+        video.addEventListener("loadeddata", function once() { video.removeEventListener("loadeddata", once); unlocked = false; unlock(); try { video.currentTime = Math.max(0.001, t); } catch(e) {} });
+      }).catch(function(){});
+    } catch(e) {}
+  }
 
   // Constants
   var EXPAND_VH = 160, CONTENT_VH = 1040, MAX_BLUR = 24;
