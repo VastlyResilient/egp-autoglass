@@ -293,8 +293,7 @@ body { overflow-x: hidden; }
 
   <!-- Video -->
   <div class="hero-media-wrapper" id="mediaWrapper">
-    <video id="heroVideo" muted playsinline preload="auto" poster="./assets/video/egp-undo-poster.jpg"
-      src="./assets/video/egp-undo.mp4">
+    <video id="heroVideo" muted playsinline preload="auto" poster="./assets/video/egp-undo-poster.jpg" data-src-m="./assets/video/egp-undo-m.mp4" data-poster-m="./assets/video/egp-undo-m-poster.jpg" data-src="./assets/video/egp-undo.mp4">
     </video>
   </div>
 
@@ -530,9 +529,13 @@ body { overflow-x: hidden; }
   if (video.readyState >= 1) showFirstFrame();
   // The film never plays on its own: it moves only with scroll, after the card has fully zoomed in.
   video.addEventListener("play", function() { video.pause(); });
+  // Phones get a film composed for a tall screen.
+  var phone = window.matchMedia("(max-aspect-ratio: 4/5)").matches;
+  if (phone) video.poster = video.getAttribute("data-poster-m");
+  video.src = video.getAttribute(phone ? "data-src-m" : "data-src");
   // Load the whole clip up front so every scroll position can be shown instantly.
   try {
-    fetch(video.currentSrc || video.src).then(function(r) { return r.ok ? r.blob() : null; }).then(function(b) {
+    fetch(video.src).then(function(r) { return r.ok ? r.blob() : null; }).then(function(b) {
       if (!b) return; var t = video.currentTime; video.src = URL.createObjectURL(b);
       video.addEventListener("loadeddata", function once() { video.removeEventListener("loadeddata", once); try { video.currentTime = Math.max(0.001, t); } catch(e) {} });
     }).catch(function(){});
